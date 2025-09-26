@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin CRUD (GraphQL + AJAX)</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+          crossorigin="anonymous">
+</head>
+<body class="container py-4">
+<h3>Admin CRUD</h3>
+
+<div class="row">
+    <div class="col-md-4">
+        <h5>Tạo Category</h5>
+        <form id="frmCat" class="mb-3">
+            <input name="name" class="form-control mb-2" placeholder="Category name" required>
+            <input name="images" class="form-control mb-2" placeholder="Image url">
+            <button class="btn btn-primary">Create</button>
+        </form>
+        <ul id="catList"></ul>
+    </div>
+
+    <div class="col-md-4">
+        <h5>Tạo User</h5>
+        <form id="frmUser" class="mb-3">
+            <input name="fullname" class="form-control mb-2" placeholder="Fullname" required>
+            <input name="email" class="form-control mb-2" placeholder="Email" required>
+            <input name="password" class="form-control mb-2" placeholder="Password">
+            <input name="phone" class="form-control mb-2" placeholder="Phone">
+            <input name="categoryIds" class="form-control mb-2" placeholder="Category IDs (vd: 1,2)">
+            <button class="btn btn-primary">Create</button>
+        </form>
+        <ul id="userList"></ul>
+    </div>
+
+    <div class="col-md-4">
+        <h5>Tạo Product</h5>
+        <form id="frmProd" class="mb-3">
+            <input name="title" class="form-control mb-2" placeholder="Title" required>
+            <input name="quantity" type="number" class="form-control mb-2" placeholder="Quantity">
+            <input name="price" type="number" step="0.01" class="form-control mb-2" placeholder="Price">
+            <input name="userId" type="number" class="form-control mb-2" placeholder="Owner UserID">
+            <textarea name="desc" class="form-control mb-2" placeholder="Description"></textarea>
+            <button class="btn btn-primary">Create</button>
+        </form>
+        <ul id="prodList"></ul>
+    </div>
+</div>
+
+<script>
+    const endpoint='/graphql';
+    async function gql(query, variables){
+        const r = await fetch(endpoint, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({query, variables})
+        });
+        return (await r.json()).data;
+    }
+
+    async function refreshLists(){
+        const data = await gql(`query{
+    categories{ id name }
+    users{ id fullname email }
+    products{ id title price }
+  }`);
+        const cats = (data && data.categories) ? data.categories : [];
+        const users = (data && data.users) ? data.users : [];
+        const prods = (data && data.products) ? data.products : [];
+        document.getElementById('catList').innerHTML =
+            cats.map(c=>`<li>${c.id} - ${c.name}</li>`).join('');
+        document.getElementById('userList').innerHTML =
+            users.map(u=>`<li>${u.id} - ${u.fullname} (${u.email})</li>`).join('');
+        document.getElementById('prodList').innerHTML =
+            prods.map(p=>`<li>${p.id} - ${p.title} - ${p.price ?? ''}</li>`).join('');
+    }
+
+    document.getElementById('frmCat').addEventListener('submit', async e=>{
+        e.preventDefault();
+        const name=e.target.name.value, images=e.target.images.value;
+        await gql(`mutation($in:CategoryInput!){
+    createCategory(input:$in){id}
+  }`, {in:{name, images}});
+        e.target.reset(); refreshLists();
+    });
+
+    document.getElementById('frmUser').addEventListener('submit', async e=>{
+        e.preventDefault();
+        const fullname=e.target.fullname.value, email=e.target.email.value;
+        const password=e.target.password.value, phone=e.target.phone.value;
+        const ids=e.target.categoryIds.value.trim();
+        const categoryIds = ids? ids.split(',').map(s=>parseInt(s.trim(),10)) : [];
+        await gql(`mutation($in:UserInput!){
+    createUser(input:$in){id}
+  }`, {in:{fullname,email,password,phone,categoryIds}});
+        e.target.reset(); refreshLists();
+    });
+
+    document.getElementById('frmProd').addEventListener('submit', async e=>{
+        e.preventDefault();
+        const title=e.target.title.value;
+        const quantity=e.target.quantity.value? parseInt(e.target.quantity.value,10):null;
+        const price=e.target.price.value? parseFloat(e.target.price.value):null;
+        const userId=e.target.userId.value? parseInt(e.target.userId.value,10):null;
+        const desc=e.target.desc.value;
+        await gql(`mutation($in:ProductInput!){
+    createProduct(input:$in){id}
+  }`, {in:{title,quantity,price,userId,desc}});
+        e.target.reset(); refreshLists();
+    });
+
+    refreshLists();
+</script>
+</body>
+</html>
