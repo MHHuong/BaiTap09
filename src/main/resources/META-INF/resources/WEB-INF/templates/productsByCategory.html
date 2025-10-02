@@ -3,53 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <title>Products by Category</title>
-    <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
-          crossorigin="anonymous">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="container py-4">
-<h3>Products by Category</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="m-0">Lọc sản phẩm theo Category</h3>
+    <div>
+        <a href="/products" class="btn btn-outline-secondary me-2">Tất cả sản phẩm</a>
+        <a href="/admin/home" class="btn btn-outline-primary me-2">Admin</a>
+        <a href="/logout" class="btn btn-outline-danger">Đăng xuất</a>
+    </div>
+</div>
 
-<select id="category" class="form-select w-auto"></select>
-<table class="table mt-3" id="tbl">
-    <thead><tr><th>Title</th><th>Price</th><th>Owner</th></tr></thead>
-    <tbody></tbody>
-</table>
+<div id="error" class="alert alert-danger d-none"></div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <label class="form-label">Category</label>
+        <select id="catSel" class="form-select" onchange="loadProductsByCat()">
+            <option value="">-- chọn category --</option>
+        </select>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle" id="prodTable">
+        <thead>
+        <tr>
+            <th style="width:80px">ID</th>
+            <th>Title</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Owner</th>
+        </tr>
+        </thead>
+        <tbody><!-- filled --></tbody>
+    </table>
+</div>
 
 <script>
     const endpoint = '/graphql';
 
-    async function gql(query, variables){
+    async function gql(query, variables) {
+        hideError();
         const r = await fetch(endpoint, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ query, variables })
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query, variables})
         });
-        return (await r.json()).data;
+        const json = await r.json();
+        if (json.errors && json.errors.length) {
+            showError(json.errors[0].message);
+            throw new Error(json.errors[0].message);
+        }
+        return json.data;
     }
 
-    async function loadCategories(){
-        const data = await gql(`query{ categories{ id name } }`);
-        const sel = document.getElementById('category');
-        const cats = (data && data.categories) ? data.categories : [];
-        sel.innerHTML = cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-        sel.onchange = loadProducts;
-        if (sel.value) loadProducts();
+    function showError(m) {
+        const el = document.getElementById('error');
+        el.textContent = m;
+        el.classList.remove('d-none');
     }
 
-    async function loadProducts(){
-        const id = document.getElementById('category').value;
-        const data = await gql(
-            `query($cid: ID!){ productsByCategory(categoryId:$cid){ title price user{fullname} } }`,
-            { cid: id }
-        );
-        const rows = (data && data.productsByCategory) ? data.productsByCategory : [];
-        document.querySelector('#tbl tbody').innerHTML =
-            rows.map(p=>`<tr><td>${p.title??''}</td><td>${p.price??''}</td><td>${p.user?.fullname??''}</td></tr>`).join('');
+    function hideError() {
+        document.getElementById('error').classList.add('d-none');
     }
 
-    loadCategories();
+    async function loadCategories() {
+        const {categories} = await gql(`query{ categories{ id name } }`);
+        const sel = document.getElementById('catSel');
+        sel.innerHTML = `<option value="">-- chọn category --</option>`;
+        categories.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.name} (#${c.id})`;
+            sel.appendChild(opt);
+        });
+    }
+
+    async function loadProductsByCat() {
+        const sel = document.getElementById('catSel');
+        const categoryId = sel.value;
+        const tbody = document.querySelector('#prodTable tbody');
+        tbody.innerHTML = '';
+        if (!categoryId) return;
+
+        const query = `
+    query($categoryId:ID!){
+      productsByCategory(categoryId:$categoryId){
+        id title quantity price user{ id fullname }
+      }
+    }
+  `;
+        const {productsByCategory} = await gql(query, {categoryId: Number(categoryId)});
+        productsByCategory.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+      <td>${p.id}</td>
+      <td>${p.title}</td>
+      <td>${p.quantity ?? ''}</td>
+      <td>${p.price ?? ''}</td>
+      <td>${p.user ? (p.user.fullname + ' (#' + p.user.id + ')') : ''}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    (async function () {
+        try {
+            await loadCategories();
+        } catch (e) {
+            console.error(e);
+        }
+    })();
 </script>
 </body>
 </html>

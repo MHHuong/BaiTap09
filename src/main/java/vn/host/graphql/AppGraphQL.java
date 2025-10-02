@@ -1,77 +1,92 @@
 package vn.host.graphql;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.graphql.data.method.annotation.Argument;
-import org.springframework.graphql.data.method.annotation.MutationMapping;
-import org.springframework.graphql.data.method.annotation.QueryMapping;
-import org.springframework.graphql.data.method.annotation.SchemaMapping;
+import org.springframework.graphql.data.method.annotation.*;
 import org.springframework.stereotype.Controller;
+import org.springframework.validation.annotation.Validated;
+import vn.host.dto.CategoryInput;
+import vn.host.dto.ProductInput;
+import vn.host.dto.UserInput;
 import vn.host.entity.Category;
 import vn.host.entity.Product;
-
 import vn.host.entity.User;
 import vn.host.repository.CategoryRepo;
 import vn.host.repository.ProductRepo;
 import vn.host.repository.UserRepo;
 
 import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Controller
 @RequiredArgsConstructor
+@Validated
 public class AppGraphQL {
 
-    private final ProductRepo productRepo;
     private final UserRepo userRepo;
     private final CategoryRepo categoryRepo;
+    private final ProductRepo productRepo;
+
+    // ======= Queries =======
+    @QueryMapping
+    public List<User> users() { return userRepo.findAll(); }
 
     @QueryMapping
-    public List<Product> productsByPriceAsc() {
-        try {
-            return productRepo.findAllByOrderByPriceAsc();
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("DB_ERROR: " + e.getMessage());
-        }
-    }
+    public User user(@Argument Long id) { return userRepo.findById(id).orElse(null); }
+
+    @QueryMapping
+    public List<Category> categories() { return categoryRepo.findAll(); }
+
+    @QueryMapping
+    public Category category(@Argument Long id) { return categoryRepo.findById(id).orElse(null); }
+
+    @QueryMapping
+    public List<Product> products() { return productRepo.findAll(); }
+
+    @QueryMapping
+    public Product product(@Argument Long id) { return productRepo.findById(id).orElse(null); }
 
     @QueryMapping
     public List<Product> productsByCategory(@Argument Long categoryId) {
+        // Đổi theo quan hệ thực tế của bạn: categories_Id hoặc user_categories_Id...
+        // Ví dụ nếu Product có ManyToMany< Category >:
+        // return productRepo.findByCategories_Id(categoryId);
+
+        // Mặc định tạm dùng theo repo mẫu ở trên:
         return productRepo.findByCategoryId(categoryId);
     }
 
-    @QueryMapping public List<User> users() { return userRepo.findAll(); }
-    @QueryMapping public List<Category> categories() { return categoryRepo.findAll(); }
-    @QueryMapping public List<Product> products() { return productRepo.findAll(); }
-    @QueryMapping public User user(@Argument Long id) { return userRepo.findById(id).orElse(null); }
-    @QueryMapping public Category category(@Argument Long id) { return categoryRepo.findById(id).orElse(null); }
-    @QueryMapping public Product product(@Argument Long id) { return productRepo.findById(id).orElse(null); }
+    @QueryMapping
+    public List<Product> productsByPriceAsc() {
+        return productRepo.findAllByOrderByPriceAsc();
+    }
 
-    public record UserInput(Long id, String fullname, String email, String password, String phone, List<Long> categoryIds) {}
-
-    @MutationMapping
-    @Transactional
-    public User createUser(@Argument UserInput in) {
+    // ======= Mutations: USER =======
+    @MutationMapping @Transactional
+    public User createUser(@Argument @Valid UserInput in) {
         User u = User.builder()
-                .fullname(in.fullname()).email(in.email())
-                .password(in.password()).phone(in.phone())
-                .categories(resolveCategories(in.categoryIds()))
+                .fullname(in.getFullname())
+                .email(in.getEmail())
+                .password(in.getPassword())
+                .phone(in.getPhone())
+                .categories(resolveCategories(in.getCategoryIds()))
                 .build();
+
+        // mặc định role USER nếu chưa có
+        if (u.getRole() == null) u.setRole(User.Role.USER);
         return userRepo.save(u);
     }
 
     @MutationMapping @Transactional
-    public User updateUser(@Argument UserInput in) {
-        User u = userRepo.findById(in.id()).orElseThrow();
-        if (in.fullname()!=null) u.setFullname(in.fullname());
-        if (in.email()!=null) u.setEmail(in.email());
-        if (in.password()!=null) u.setPassword(in.password());
-        if (in.phone()!=null) u.setPhone(in.phone());
-        if (in.categoryIds()!=null) u.setCategories(resolveCategories(in.categoryIds()));
+    public User updateUser(@Argument @Valid UserInput in) {
+        User u = userRepo.findById(in.getId()).orElseThrow();
+        if (in.getFullname() != null) u.setFullname(in.getFullname());
+        if (in.getEmail() != null)    u.setEmail(in.getEmail());
+        if (in.getPassword() != null) u.setPassword(in.getPassword());
+        if (in.getPhone() != null)    u.setPhone(in.getPhone());
+        if (in.getCategoryIds() != null) u.setCategories(resolveCategories(in.getCategoryIds()));
+        if (u.getRole() == null) u.setRole(User.Role.USER);
         return userRepo.save(u);
     }
 
@@ -82,18 +97,20 @@ public class AppGraphQL {
         return true;
     }
 
-    public record CategoryInput(Long id, String name, String images) {}
-
+    // ======= Mutations: CATEGORY =======
     @MutationMapping
-    public Category createCategory(@Argument CategoryInput in) {
-        return categoryRepo.save(Category.builder().name(in.name()).images(in.images()).build());
+    public Category createCategory(@Argument @Valid CategoryInput in) {
+        return categoryRepo.save(Category.builder()
+                .name(in.getName())
+                .images(in.getImages())
+                .build());
     }
 
     @MutationMapping
-    public Category updateCategory(@Argument CategoryInput in) {
-        Category c = categoryRepo.findById(in.id()).orElseThrow();
-        if (in.name()!=null) c.setName(in.name());
-        if (in.images()!=null) c.setImages(in.images());
+    public Category updateCategory(@Argument @Valid CategoryInput in) {
+        Category c = categoryRepo.findById(in.getId()).orElseThrow();
+        if (in.getName() != null)   c.setName(in.getName());
+        if (in.getImages() != null) c.setImages(in.getImages());
         return categoryRepo.save(c);
     }
 
@@ -104,28 +121,32 @@ public class AppGraphQL {
         return true;
     }
 
-    public record ProductInput(Long id, String title, Integer quantity, String desc, Float price, Long userId) {}
-
+    // ======= Mutations: PRODUCT =======
     @MutationMapping
-    public Product createProduct(@Argument ProductInput in) {
-        User owner = (in.userId()!=null) ? userRepo.findById(in.userId()).orElse(null) : null;
-        return productRepo.save(Product.builder()
-                .title(in.title())
-                .quantity(in.quantity())
-                .desc(in.desc())
-                .price(in.price()!=null ? BigDecimal.valueOf(in.price()) : null)
+    public Product createProduct(@Argument @Valid ProductInput in) {
+        User owner = (in.getUserId() != null) ? userRepo.findById(in.getUserId()).orElse(null) : null;
+        Product p = Product.builder()
+                .title(in.getTitle())
+                .quantity(in.getQuantity())
+                .price(in.getPrice() != null ? BigDecimal.valueOf(in.getPrice()) : null)
                 .user(owner)
-                .build());
+                .build();
+
+        // tránh field "desc" – dùng description
+        if (in.getDescription() != null) {
+            p.setDescription(in.getDescription());
+        }
+        return productRepo.save(p);
     }
 
     @MutationMapping
-    public Product updateProduct(@Argument ProductInput in) {
-        Product p = productRepo.findById(in.id()).orElseThrow();
-        if (in.title()!=null) p.setTitle(in.title());
-        if (in.quantity()!=null) p.setQuantity(in.quantity());
-        if (in.desc()!=null) p.setDesc(in.desc());
-        if (in.price()!=null) p.setPrice(BigDecimal.valueOf(in.price()));
-        if (in.userId()!=null) p.setUser(userRepo.findById(in.userId()).orElse(null));
+    public Product updateProduct(@Argument @Valid ProductInput in) {
+        Product p = productRepo.findById(in.getId()).orElseThrow();
+        if (in.getTitle() != null)       p.setTitle(in.getTitle());
+        if (in.getQuantity() != null)    p.setQuantity(in.getQuantity());
+        if (in.getPrice() != null)       p.setPrice(BigDecimal.valueOf(in.getPrice()));
+        if (in.getDescription() != null) p.setDescription(in.getDescription());
+        if (in.getUserId() != null)      p.setUser(userRepo.findById(in.getUserId()).orElse(null));
         return productRepo.save(p);
     }
 
@@ -135,10 +156,8 @@ public class AppGraphQL {
         productRepo.deleteById(id);
         return true;
     }
-    @SchemaMapping(typeName = "Product", field = "price")
-    public Double mapPrice(vn.host.entity.Product p) {
-        return p.getPrice() != null ? p.getPrice().doubleValue() : null;
-    }
+
+    // ======= Helpers =======
     private Set<Category> resolveCategories(List<Long> ids) {
         if (ids == null || ids.isEmpty()) return Collections.emptySet();
         return new HashSet<>(categoryRepo.findAllById(ids));

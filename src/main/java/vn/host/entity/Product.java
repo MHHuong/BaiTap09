@@ -14,7 +14,7 @@ public class Product {
     private Integer quantity;
 
     @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
-    private String desc;
+    private String description;
 
     private BigDecimal price;
 

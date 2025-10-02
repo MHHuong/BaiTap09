@@ -1,44 +1,34 @@
-type Product {
-    id: ID!
-    title: String
-    quantity: Int
-    desc: String
-    price: Float
-    user: User
-}
-
+# ====== Types ======
 type User {
     id: ID!
-    fullname: String
-    email: String
-    password: String
+    fullname: String!
+    email: String!
     phone: String
+    role: String
     categories: [Category!]
 }
 
 type Category {
     id: ID!
-    name: String
+    name: String!
     images: String
     users: [User!]
 }
 
-type Query {
-    productsByPriceAsc: [Product!]!
-    productsByCategory(categoryId: ID!): [Product!]!
-
-    users: [User!]!
-    categories: [Category!]!
-    products: [Product!]!
-    user(id: ID!): User
-    category(id: ID!): Category
-    product(id: ID!): Product
+type Product {
+    id: ID!
+    title: String!
+    quantity: Int
+    description: String
+    price: Float
+    user: User
 }
 
+# ====== Inputs ======
 input UserInput {
     id: ID
-    fullname: String
-    email: String
+    fullname: String!
+    email: String!
     password: String
     phone: String
     categoryIds: [ID!]
@@ -52,23 +42,39 @@ input CategoryInput {
 
 input ProductInput {
     id: ID
-    title: String
+    title: String!
     quantity: Int
-    desc: String
+    description: String
     price: Float
     userId: ID
 }
 
+# ====== Queries ======
+type Query {
+    users: [User!]!
+    user(id: ID!): User
+
+    categories: [Category!]!
+    category(id: ID!): Category
+
+    products: [Product!]!
+    product(id: ID!): Product
+
+    productsByCategory(categoryId: ID!): [Product!]!
+    productsByPriceAsc: [Product!]!
+}
+
+# ====== Mutations ======
 type Mutation {
-    createUser(input: UserInput!): User!
-    updateUser(input: UserInput!): User!
+    createUser(in: UserInput!): User!
+    updateUser(in: UserInput!): User!
     deleteUser(id: ID!): Boolean!
 
-    createCategory(input: CategoryInput!): Category!
-    updateCategory(input: CategoryInput!): Category!
+    createCategory(in: CategoryInput!): Category!
+    updateCategory(in: CategoryInput!): Category!
     deleteCategory(id: ID!): Boolean!
 
-    createProduct(input: ProductInput!): Product!
-    updateProduct(input: ProductInput!): Product!
+    createProduct(in: ProductInput!): Product!
+    updateProduct(in: ProductInput!): Product!
     deleteProduct(id: ID!): Boolean!
 }
